@@ -37,12 +37,14 @@ class FlappyBirdEnv(gym.Env[np.ndarray, int]):
         reward_pass: float = 1.0,
         reward_death: float = -10.0,
         reward_alive: float = 0.0,
+        reward_per_step: float = 0.0,
     ) -> None:
         super().__init__()
         self.render_mode = render_mode
         self.reward_pass = reward_pass
         self.reward_death = reward_death
         self.reward_alive = reward_alive
+        self.reward_per_step = reward_per_step
         self.observation_space = spaces.Box(
             low=np.array([0.0, 0.0, 0.0, 0.0, -1.0], dtype=np.float32),
             high=np.array([1.0, 1.0, 2.0, 1.0, 1.0], dtype=np.float32),
@@ -124,6 +126,8 @@ class FlappyBirdEnv(gym.Env[np.ndarray, int]):
     ) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         if self._bird is None or self._pipe_manager is None or self._ground is None or self._score is None:
             raise RuntimeError("Env not initialized. Call reset() first.")
+        vel_before = self._bird.velocity
+        y_before = self._bird.y / SCREEN_HEIGHT
         if action == 1:
             self._bird.flap()
         self._bird.update()
@@ -139,10 +143,19 @@ class FlappyBirdEnv(gym.Env[np.ndarray, int]):
             or self._bird.y <= 0
         )
         if collision:
-            reward = self.reward_death
+            reward = self.reward_death + self.reward_per_step
             terminated = True
         else:
-            reward = self.reward_alive + self.reward_pass * score_inc
+            reward = self.reward_alive + self.reward_pass * score_inc + self.reward_per_step
+            y_norm = self._bird.y / SCREEN_HEIGHT
+            if y_norm < 0.25:
+                reward -= 0.12
+            elif y_norm > 0.82:
+                reward -= 0.12
+            if action == 1 and vel_before > 0:
+                reward -= 0.1
+            if action == 1 and y_before < 0.45:
+                reward -= 0.14
             terminated = False
         obs = self._get_obs()
         info = self._get_info()

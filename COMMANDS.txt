@@ -1,0 +1,32 @@
+Run from project root: homework/
+
+--------------------------------------------------------------------------------
+1. LAUNCH GAME (human player)
+--------------------------------------------------------------------------------
+  python -m game
+
+  Play Flappy Bird yourself. SPACE or click = flap, ESC = quit.
+
+
+--------------------------------------------------------------------------------
+2. LAUNCH UNTRAINED AGENT
+--------------------------------------------------------------------------------
+  python rl-agent/dqn-agent.py --play
+
+  Opens the game and runs the agent with random weights (no training). Watch a few episodes.
+
+
+--------------------------------------------------------------------------------
+3. LAUNCH TRAINED AGENT
+--------------------------------------------------------------------------------
+  python rl-agent/dqn-agent.py --play --model rl-agent/models/2026-02-09_18-13-18.pt
+
+  Opens the game and runs the agent using a saved model. Use the exact filename from rl-agent/models/ (date and time).
+
+
+--------------------------------------------------------------------------------
+4. TRAINING
+--------------------------------------------------------------------------------
+  python rl-agent/dqn-agent.py
+
+  Trains the DQN agent (1000 episodes by default). Saves plot to rl-agent/plots/ and model to rl-agent/models/ (filename: YYYY-MM-DD_HH-MM-SS.pt).

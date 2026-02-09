@@ -2,7 +2,7 @@ import argparse
 import os
 import random
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +25,7 @@ from game.env import FlappyBirdEnv
 
 GAMMA = 0.99
 EPSILON_START = 1.0
-DECAY = 0.995
+DECAY = 0.9995
 MIN_EPSILON = 0.01
 BATCH_SIZE = 128
 LR = 1e-4
@@ -44,9 +44,10 @@ def save_learning_plot(
 ) -> Path:
     if base_dir is None:
         base_dir = Path(_script_dir)
-    date_str = date.today().isoformat()
-    save_dir = Path(base_dir) / PLOTS_DIR / date_str
+    save_dir = Path(base_dir) / PLOTS_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"{timestamp}.png"
     episodes = np.arange(len(episode_rewards))
     raw = np.array(episode_rewards, dtype=np.float64)
     ma = np.convolve(raw, np.ones(window) / window, mode="valid")
@@ -60,7 +61,7 @@ def save_learning_plot(
     ax.legend(loc="lower right")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    path = save_dir / "learning_progress.png"
+    path = save_dir / filename
     fig.savefig(path, dpi=150)
     plt.close(fig)
     return path
@@ -182,10 +183,10 @@ class DQNAgent(object):
         if plot and episode_rewards:
             path = save_learning_plot(episode_rewards, env_name=env_name)
             print(f"Plot saved: {path}")
-            date_str = date.today().isoformat()
-            models_save_dir = Path(_script_dir) / MODELS_DIR / date_str
+            models_save_dir = Path(_script_dir) / MODELS_DIR
             models_save_dir.mkdir(parents=True, exist_ok=True)
-            model_path = models_save_dir / "dqn_policy.pt"
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            model_path = models_save_dir / f"{timestamp}.pt"
             torch.save(self.policy_net.state_dict(), model_path)
             print(f"Model saved: {model_path}")
         return episode_rewards
@@ -269,7 +270,10 @@ if __name__ == "__main__":
     if args.play:
         run_play(model_path=args.model, num_episodes=args.episodes)
     else:
-        env = FlappyBirdEnv(render_mode=None)
+        env = FlappyBirdEnv(
+            render_mode=None,
+            reward_per_step=0.01,
+        )
         obs_size = env.observation_space.shape[0]
         n_actions = env.action_space.n
         policy_net = DQN(obs_size, (64, 64), n_actions)
