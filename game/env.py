@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from typing import Any
 
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-
 import numpy as np
 import pygame
 import gymnasium as gym
@@ -63,6 +61,8 @@ class FlappyBirdEnv(gym.Env[np.ndarray, int]):
     def _init_pygame(self) -> None:
         if self._pygame_initialized:
             return
+        if self.render_mode is None:
+            os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
         pygame.init()
         self._pygame_initialized = True
         if self.render_mode == "human":
