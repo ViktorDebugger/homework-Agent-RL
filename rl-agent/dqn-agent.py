@@ -1,3 +1,4 @@
+import argparse
 import os
 import random
 import sys
@@ -32,6 +33,7 @@ TARGET_UPDATE = 100
 MAX_STEPS = 5000
 MOVING_AVG_WINDOW = 50
 PLOTS_DIR = "plots"
+MODELS_DIR = "models"
 
 
 def save_learning_plot(
@@ -180,26 +182,110 @@ class DQNAgent(object):
         if plot and episode_rewards:
             path = save_learning_plot(episode_rewards, env_name=env_name)
             print(f"Plot saved: {path}")
+            date_str = date.today().isoformat()
+            models_save_dir = Path(_script_dir) / MODELS_DIR / date_str
+            models_save_dir.mkdir(parents=True, exist_ok=True)
+            model_path = models_save_dir / "dqn_policy.pt"
+            torch.save(self.policy_net.state_dict(), model_path)
+            print(f"Model saved: {model_path}")
         return episode_rewards
 
-if __name__ == "__main__":
-    env = FlappyBirdEnv(render_mode=None)
+
+def run_play(
+    model_path: Path | str | None = None,
+    num_episodes: int = 5,
+) -> None:
+    env = FlappyBirdEnv(render_mode="human")
     obs_size = env.observation_space.shape[0]
     n_actions = env.action_space.n
     policy_net = DQN(obs_size, (64, 64), n_actions)
+    if model_path is not None:
+        path = Path(model_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Model file not found: {path}")
+        policy_net.load_state_dict(torch.load(path, map_location="cpu"))
+        print(f"Loaded model: {path}")
+    else:
+        print("Running untrained agent (random weights)")
     target_net = DQN(obs_size, (64, 64), n_actions)
     target_net.load_state_dict(policy_net.state_dict())
     optimizer = optim.Adam(policy_net.parameters(), lr=LR)
-    replay_buffer = ReplayBuffer(capacity=int(1e5))
+    replay_buffer = ReplayBuffer(capacity=1)
     agent = DQNAgent(
         env,
         policy_net,
         target_net,
         optimizer,
         replay_buffer,
-        epsilon_start=EPSILON_START,
-        decay=DECAY,
-        min_epsilon=MIN_EPSILON,
-        batch_size=BATCH_SIZE,
+        epsilon_start=0.0,
+        decay=1.0,
+        min_epsilon=0.0,
+        batch_size=1,
     )
-    agent.train(num_episodes=1000, plot=True, env_name="FlappyBird")
+    for episode in range(num_episodes):
+        state, _ = env.reset()
+        done = False
+        steps = 0
+        total_reward = 0.0
+        while not done and steps < MAX_STEPS:
+            action = agent.select_action(state)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            env.render()
+            state = next_state
+            done = terminated or truncated
+            total_reward += reward
+            steps += 1
+        print(f"Episode {episode + 1}/{num_episodes}  steps={steps}  total_reward={total_reward:.1f}")
+    env.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train DQN or watch agent play.")
+    parser.add_argument(
+        "--play",
+        action="store_true",
+        help="Run the game with the agent playing (no training).",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Path to saved model .pt file. If omitted with --play, uses untrained agent.",
+    )
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+        help="Number of episodes when using --play (default: 5).",
+    )
+    parser.add_argument(
+        "--train-episodes",
+        type=int,
+        default=1000,
+        help="Number of training episodes when not using --play (default: 1000).",
+    )
+    args = parser.parse_args()
+
+    if args.play:
+        run_play(model_path=args.model, num_episodes=args.episodes)
+    else:
+        env = FlappyBirdEnv(render_mode=None)
+        obs_size = env.observation_space.shape[0]
+        n_actions = env.action_space.n
+        policy_net = DQN(obs_size, (64, 64), n_actions)
+        target_net = DQN(obs_size, (64, 64), n_actions)
+        target_net.load_state_dict(policy_net.state_dict())
+        optimizer = optim.Adam(policy_net.parameters(), lr=LR)
+        replay_buffer = ReplayBuffer(capacity=int(1e5))
+        agent = DQNAgent(
+            env,
+            policy_net,
+            target_net,
+            optimizer,
+            replay_buffer,
+            epsilon_start=EPSILON_START,
+            decay=DECAY,
+            min_epsilon=MIN_EPSILON,
+            batch_size=BATCH_SIZE,
+        )
+        agent.train(num_episodes=args.train_episodes, plot=True, env_name="FlappyBird")
