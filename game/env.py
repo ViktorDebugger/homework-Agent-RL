@@ -176,6 +176,8 @@ class FlappyBirdEnv(gym.Env[np.ndarray, int]):
             self._ground.draw(self._screen)
         if self._bird is not None:
             self._bird.draw(self._screen)
+        if self._score is not None:
+            self._score.draw(self._screen, "PLAYING")
         if self.render_mode == "human":
             pygame.display.flip()
             if self._clock is not None:

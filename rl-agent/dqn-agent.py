@@ -30,6 +30,7 @@ MIN_EPSILON = 0.01
 BATCH_SIZE = 128
 LR = 1e-4
 TARGET_UPDATE = 100
+TAU = 0.005
 MAX_STEPS = 5000
 MOVING_AVG_WINDOW = 50
 PLOTS_DIR = "plots"
@@ -142,10 +143,9 @@ class DQNAgent(object):
         
         # Compute the Q-values for the selected actions
         q_values = self.policy_net(state).gather(1, action.unsqueeze(1)).squeeze()
-        
-        # Compute the target Q-values using the target network and max over next state
         with torch.no_grad():
-            max_next_q = self.target_net(next_state).max(1)[0]
+            next_actions = self.policy_net(next_state).argmax(1, keepdim=True)
+            max_next_q = self.target_net(next_state).gather(1, next_actions).squeeze()
             done_f = done.float()
             target_q_values = reward + GAMMA * (1.0 - done_f) * max_next_q
         
@@ -159,7 +159,11 @@ class DQNAgent(object):
             if param.grad is not None:
                 param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
-    
+        for t_param, p_param in zip(
+            self.target_net.parameters(), self.policy_net.parameters()
+        ):
+            t_param.data.copy_(TAU * p_param.data + (1.0 - TAU) * t_param.data)
+
     def train(self, num_episodes: int, plot: bool = True, env_name: str = "FlappyBird") -> List[float]:
         episode_rewards: List[float] = []
         for episode in range(num_episodes):
@@ -178,8 +182,11 @@ class DQNAgent(object):
                 self.eps = max(self.min_epsilon, self.eps * self.decay)
                 steps_done += 1
             episode_rewards.append(episode_reward)
-            if episode > 0 and episode % TARGET_UPDATE == 0:
-                self.target_net.load_state_dict(self.policy_net.state_dict())
+            progress = (episode + 1) / num_episodes * 100
+            sys.stdout.write(f"\rEpisode {episode + 1}/{num_episodes} ({progress:.1f}%) | Epsilon: {self.eps:.3f}   ")
+            sys.stdout.flush()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
         if plot and episode_rewards:
             path = save_learning_plot(episode_rewards, env_name=env_name)
             print(f"Plot saved: {path}")
@@ -262,8 +269,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train-episodes",
         type=int,
-        default=1000,
-        help="Number of training episodes when not using --play (default: 1000).",
+        default=2000,
+        help="Number of training episodes when not using --play (default: 2000).",
     )
     args = parser.parse_args()
 
